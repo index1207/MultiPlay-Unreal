@@ -1,0 +1,12 @@
+.idea
+.vs
+Binaries/
+Build/
+DerivedDataCache/
+Intermediate/
+Platform/
+Saved/
+.vsconfig
+*.sln
+
+Source/Netcpp/*

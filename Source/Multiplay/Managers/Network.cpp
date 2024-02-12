@@ -50,7 +50,8 @@ bool UNetwork::IsConnected() const
 
 void UNetwork::Send(Packet* Packet) const
 {
-	Session->Send(Packet);
+	if (Session)
+		Session->Send(Packet);
 }
 
 void UNetwork::SetSession(const TSharedPtr<FSession>& NewSession)

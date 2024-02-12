@@ -33,7 +33,7 @@ void UManager::EndPlay()
 
 void UManager::ConnectToServer() const
 {
-	if (!NetworkObject->Connect(net::Endpoint(net::IpAddress::Loopback, 9999)))
+	if (!NetworkObject->Connect(net::Endpoint(net::IpAddress::parse("192.168.0.63"), 9999)))
 		GEngine->AddOnScreenDebugMessage(-1, 5, FColor::Red, TEXT("Connect failed."));
 }
 

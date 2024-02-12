@@ -1,40 +1,43 @@
-﻿#include "generated/ClientPacketHandler.gen.hpp"
+﻿#include "Session.h"
+#include "generated/ClientPacketHandler.gen.hpp"
 
 #include "Managers/Manager.h"
 #include "Managers/Network.h"
 
-#include "Network/Session.h"
+using namespace gen;
 
-auto gen::PacketHandler::LoginResPacketHandler(TSharedPtr<Session> Session, TSharedPtr<LoginRes> Packet) -> void
+bool gen::PacketHandler::LoginResPacketHandler(TSharedPtr<FSession> Session, TSharedPtr<LoginRes> Packet)
 {
-	for (auto& Player : Packet->playerList)
-	{
-	}
-
-	gen::EnterGameReq EnterGamePkt;
+	EnterGameReq EnterGamePkt;
 	EnterGamePkt.playerIdx = 0;
 	Session->Send(&EnterGamePkt);
+	return false;
 }
-void gen::PacketHandler::EnterGameResPacketHandler(TSharedPtr<Session> Session, TSharedPtr<EnterGameRes> Packet)
+bool gen::PacketHandler::EnterGameResPacketHandler(TSharedPtr<FSession> Session, TSharedPtr<EnterGameRes> Packet)
 {
 	UManager::Net()->HandleSpawn(*Packet);
+	return false;
 }
 
-void gen::PacketHandler::LeaveGameResPacketHandler(TSharedPtr<Session> session, TSharedPtr<LeaveGameRes> packet)
+bool gen::PacketHandler::LeaveGameResPacketHandler(TSharedPtr<FSession> session, TSharedPtr<LeaveGameRes> packet)
 {
+	return false;
 }
 
-void gen::PacketHandler::SpawnNotifyPacketHandler(TSharedPtr<Session> session, TSharedPtr<SpawnNotify> packet)
+bool gen::PacketHandler::SpawnNotifyPacketHandler(TSharedPtr<FSession> session, TSharedPtr<SpawnNotify> packet)
 {
 	UManager::Net()->HandleSpawn(*packet);
+	return false;
 }
 
-void gen::PacketHandler::DespawnNotifyPacketHandler(TSharedPtr<Session> session, TSharedPtr<DespawnNotify> packet)
+bool gen::PacketHandler::DespawnNotifyPacketHandler(TSharedPtr<FSession> session, TSharedPtr<DespawnNotify> packet)
 {
 	UManager::Net()->HandleDespawn(*packet);
+	return false;
 }
 
-void gen::PacketHandler::MoveResPacketHandler(TSharedPtr<Session> session, TSharedPtr<MoveRes> packet)
+bool gen::PacketHandler::MoveResPacketHandler(TSharedPtr<FSession> session, TSharedPtr<MoveRes> packet)
 {
 	UManager::Net()->HandleMove(*packet);
+	return false;
 }

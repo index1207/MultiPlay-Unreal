@@ -20,12 +20,8 @@ void FSession::OnReceive(std::span<char> buffer, int32 length)
 {
 	if (length <= 2)
 		return;
-		
-	gen::PacketId id = gen::PacketId::None;
-	std::memcpy(&id, buffer.data(), sizeof(unsigned short));
-	id = static_cast<gen::PacketId>(ntohs(static_cast<u_short>(id)));
-	
-	PacketQue.Enqueue(gen::PacketHandler::parsePacket(id, buffer));
+	auto Handler = gen::PacketHandler::getHandler(buffer);
+	HandlerQue.Enqueue(Handler);
 }
 
 void FSession::Send(std::span<char> data)
@@ -34,7 +30,7 @@ void FSession::Send(std::span<char> data)
 		OnDisconnected();
 }
 
-void FSession::Send(Packet* pkt)
+void FSession::Send(sv::Packet* pkt)
 {
 	pkt->write();
 	Send(pkt->data());
@@ -47,12 +43,13 @@ net::Socket* FSession::GetHandle() const
 
 void FSession::Flush()
 {
-	while(true)
+	while (!HandlerQue.IsEmpty())
 	{
-		TSharedPtr<Packet> Packet;
-		if (!PacketQue.Dequeue(Packet))
-			return;
-		if (Packet != nullptr)
-			Packet->executeHandler(AsShared());
+		TFunction<bool(TSharedPtr<FSession>)> Handler;
+		if (HandlerQue.Dequeue(Handler))
+		{
+			if (Handler)
+				bool Result = Handler(AsShared());
+		}
 	}
 }

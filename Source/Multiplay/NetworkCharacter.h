@@ -18,13 +18,13 @@ public:
 	ANetworkCharacter();
 	virtual ~ANetworkCharacter() override;
 public:
-	FORCEINLINE const gen::PlayerInfo* GetPlayerInfo() const;
-	FORCEINLINE void SetPlayerInfo(const gen::PlayerInfo& PlayerInfo);
+	const gen::PlayerInfo* GetPlayerInfo() const;
+	void SetPlayerInfo(const gen::PlayerInfo& PlayerInfo);
 	
-	FORCEINLINE void SetDestination(const gen::Status& DestLocation) const;
+	void SetDestination(const gen::Status& DestLocation) const;
 
-	FORCEINLINE gen::EMoveState GetMoveState() const;
-	FORCEINLINE void SetMoveState(gen::EMoveState State) const;
+	gen::EMoveState GetMoveState() const;
+	void SetStatus(gen::EMoveState State, float YawValue) const;
 protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;

@@ -29,7 +29,7 @@ public:
 	bool Connect(const net::Endpoint& EndPoint);
 	void Disconnect();
 	bool IsConnected() const;
-	inline void Send(sv::Packet* Packet) const;
+	void Send(sv::Packet* Packet) const;
 public:
 	void SetSession(const TSharedPtr<FSession>& NewSession);
 	TSharedPtr<FSession> GetSession();

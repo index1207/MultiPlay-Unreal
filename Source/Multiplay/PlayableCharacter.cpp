@@ -3,12 +3,15 @@
 
 #include "PlayableCharacter.h"
 #include <Camera/CameraComponent.h>
-#include <Components/CapsuleComponent.h>
+#include "EnhancedInputSubsystems.h"
+#include "EnhancedInputComponent.h"
 
 #include "Utility.h"
+#include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "generated/Protocol.gen.hpp"
+#include "Kismet/KismetMathLibrary.h"
 #include "Managers/Manager.h"
 #include "Managers/Network.h"
 
@@ -27,14 +30,19 @@ APlayableCharacter::APlayableCharacter()
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Main Camera"));
 	Camera->SetupAttachment(SpringArm, USpringArmComponent::SocketName);
 	Camera->bUsePawnControlRotation = false;
-
-	IsMoving = false;
 }
 
 // Called when the game starts or when spawned
 void APlayableCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+	if (auto* PlayerController = Cast<APlayerController>(GetController()))
+	{
+		if (auto* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer()))
+		{
+			Subsystem->AddMappingContext(InputMappingContext, 0);
+		}
+	}
 }
 
 void APlayableCharacter::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -51,17 +59,27 @@ bool APlayableCharacter::IsMine() const
 void APlayableCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	
+	bool bShouldSendPacket = false;
+	if (LastDesiredInput != DesiredInput)
+	{
+		bShouldSendPacket = true;
+		LastDesiredInput = DesiredInput;
+	}
+
+	if (DesiredInput == FVector2D::ZeroVector)
+		SetStatus(gen::MOVE_STATE_IDLE, DesiredYaw);
+	else
+		SetStatus(gen::MOVE_STATE_RUN, DesiredYaw);
+
 	MoveSendTimer -= DeltaTime;
-	if (MoveSendTimer <= 0)
+	if (MoveSendTimer <= 0 || bShouldSendPacket)
 	{
 		MoveSendTimer = MOVE_SEND_DELAY;
 
-		if (IsMoving)
-		{
-			gen::MoveReq MovePacket;
-			MovePacket.status = GetPlayerInfo()->status;
-			UManager::Net()->Send(&MovePacket);
-		}
+		gen::MoveReq MovePacket;
+		MovePacket.status = GetPlayerInfo()->status;
+		UManager::Net()->Send(&MovePacket);
 	}
 }
 
@@ -69,45 +87,71 @@ void APlayableCharacter::Tick(float DeltaTime)
 void APlayableCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
-
-	PlayerInputComponent->BindAxis("MoveForward", this, &APlayableCharacter::MoveForward);
-	PlayerInputComponent->BindAxis("MoveRight", this, &APlayableCharacter::MoveRight);
-	PlayerInputComponent->BindAxis("Turn", this, &APawn::AddControllerYawInput);
-	PlayerInputComponent->BindAxis("LookUp", this, &APawn::AddControllerPitchInput);
-
-	PlayerInputComponent->BindAction("Sprint", IE_Pressed, this, &APlayableCharacter::BeginSprint);
-	PlayerInputComponent->BindAction("Sprint", IE_Released, this, &APlayableCharacter::EndSprint);
-}
-
-void APlayableCharacter::MoveForward(const float AxisValue)
-{
-	if (Controller && AxisValue != 0.0f)
+	if (auto* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent))
 	{
-		const auto Rotation = Controller->GetControlRotation();
-		const auto YawRotation = FRotator(0, Rotation.Yaw, 0);
+		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &APlayableCharacter::Move);
+		EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Completed, this, &APlayableCharacter::Move);
+		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &APlayableCharacter::Look);
 
-		const auto Direction = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
-		AddMovementInput(Direction, AxisValue);
+		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Triggered, this, &APlayableCharacter::BeginSprint);
+		EnhancedInputComponent->BindAction(SprintAction, ETriggerEvent::Completed, this, &APlayableCharacter::EndSprint);
 	}
 }
 
-void APlayableCharacter::MoveRight(float AxisValue)
+void APlayableCharacter::Move(const FInputActionValue& Value)
 {
-	if (Controller && AxisValue != 0.0f)
-	{
-		const auto Rotation = Controller->GetControlRotation();
-		const auto YawRotation = FRotator(0, Rotation.Yaw, 0);
+	FVector2D MovementVector = Value.Get<FVector2D>();
 
-		const auto Direction = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
-		AddMovementInput(Direction, AxisValue);
+	if (Controller != nullptr)
+	{
+		// find out which way is forward
+		const FRotator Rotation = Controller->GetControlRotation();
+		const FRotator YawRotation(0, Rotation.Yaw, 0);
+
+		// get forward vector
+		const FVector ForwardDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::X);
+	
+		// get right vector 
+		const FVector RightDirection = FRotationMatrix(YawRotation).GetUnitAxis(EAxis::Y);
+
+		// add movement 
+		AddMovementInput(ForwardDirection, MovementVector.Y);
+		AddMovementInput(RightDirection, MovementVector.X);
+
+		DesiredInput = MovementVector;
+		DesiredMoveDirection = FVector::ZeroVector;
+		DesiredMoveDirection += ForwardDirection * MovementVector.Y;
+		DesiredMoveDirection += RightDirection * MovementVector.X;
+		DesiredMoveDirection.Normalize();
+
+		const auto Location = GetActorLocation();
+		const auto Rotator = UKismetMathLibrary::FindLookAtRotation(Location, Location + DesiredMoveDirection);
+		DesiredYaw = Rotator.Yaw;
 	}
 }
 
+void APlayableCharacter::Look(const FInputActionValue& Value)
+{
+	FVector2D LookAxisVector = Value.Get<FVector2D>();
+
+	if (Controller != nullptr)
+	{
+		// add yaw and pitch input to controller
+		AddControllerYawInput(LookAxisVector.X);
+		AddControllerPitchInput(LookAxisVector.Y);
+	}
+}
+
+// ReSharper disable once CppMemberFunctionMayBeConst
 void APlayableCharacter::BeginSprint()
 {
 	GetCharacterMovement()->MaxWalkSpeed = 800;
+	gen::MoveReq MovePacket;
+	MovePacket.status = GetPlayerInfo()->status;
+	UManager::Net()->Send(&MovePacket);
 }
 
+// ReSharper disable once CppMemberFunctionMayBeConst
 void APlayableCharacter::EndSprint()
 {
 	GetCharacterMovement()->MaxWalkSpeed = 400;

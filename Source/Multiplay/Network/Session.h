@@ -16,12 +16,12 @@ public:
 	void OnReceive(std::span<char> buffer, int32 length);
 public:
 	void Send(std::span<char> data);
-	void Send(Packet* pkt);
+	void Send(sv::Packet* pkt);
 public:
 	net::Socket* GetHandle() const;
 	void Flush();
 private:
 	net::Socket* Socket;
 	char m_buffer[4096];
-	TQueue<TSharedPtr<Packet>> PacketQue;
+	TQueue<TFunction<bool(TSharedPtr<FSession>)>> HandlerQue;
 };

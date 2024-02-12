@@ -3,8 +3,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "InputActionValue.h"
 #include "NetworkCharacter.h"
 #include "PlayableCharacter.generated.h"
+
+class UInputAction;
 
 UCLASS()
 class MULTIPLAY_API	APlayableCharacter : public ANetworkCharacter
@@ -28,8 +31,8 @@ public:
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 protected:
-	void MoveForward(float AxisValue);
-	void MoveRight(float AxisValue);
+	void Move(const FInputActionValue& Value);
+	void Look(const FInputActionValue& Value);
 	void BeginSprint();
 	void EndSprint();
 protected:
@@ -37,7 +40,21 @@ protected:
 	class USpringArmComponent* SpringArm;
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	class UCameraComponent* Camera;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input")
+	class UInputMappingContext* InputMappingContext;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input")
+	UInputAction* MoveAction;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input")
+	UInputAction* LookAction;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Input")
+	UInputAction* SprintAction;
 protected:
 	const float MOVE_SEND_DELAY = 0.2f;
 	float MoveSendTimer = MOVE_SEND_DELAY;
+
+	FVector2D DesiredInput;
+	FVector DesiredMoveDirection;
+	float DesiredYaw;
+
+	FVector2D LastDesiredInput;
 };
